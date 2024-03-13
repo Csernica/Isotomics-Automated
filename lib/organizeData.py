@@ -121,10 +121,10 @@ def get_subfolder_paths(folder_path):
 
 def get_isoX_file_Smp_Std_Dictionary(parent_folder, file_extension='.isox'):
     fragmentFolderPaths = get_subfolder_paths(parent_folder)
-    folderNames = {}
+    isoXFileNames = {}
 
     for thisPath in fragmentFolderPaths:
         file_names = get_file_paths_in_subfolders(thisPath, file_extension)
-        folderNames[thisPath] = file_names
-        
-    return folderNames
+        isoXFileNames[thisPath] = file_names
+
+    return isoXFileNames

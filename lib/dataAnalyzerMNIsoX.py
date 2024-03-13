@@ -406,3 +406,5 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
         sampleOutputDict[file][fragment][ratio] = {'Average':avg,'StdDev':std,'StdError':stderr,'RelStdError':rse,'ShotNoise':SN}
         
     return sampleOutputDict
+
+def 
