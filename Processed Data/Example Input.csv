@@ -1,0 +1,7 @@
+﻿Site Names,Element,Number Atoms,Fragment full,Fragment 44,Standard 1 Delta Values,Standard 2 Delta Values
+Calphabeta,C,2,1,1,-30,-25
+Ccarboxyl,C,1,1,0,-30,-25
+Ocarboxyl,O,2,1,0,0,10
+Namine,N,1,1,1,0,10
+Hretained,H,6,1,1,0,100
+Hlost,H,2,1,0,0,-100
