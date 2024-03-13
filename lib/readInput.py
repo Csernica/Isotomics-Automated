@@ -44,7 +44,10 @@ def readComputedData(JSONInput, error = 0, theory = {}):
                     if type(error) == float or type(error) == int:
                         thisError = error
                     else:
-                        thisError = error[massSelection][fragKey][subKey]
+                        try:
+                            thisError = error[massSelection][fragKey][subKey]
+                        except: 
+                            raise Exception("Expected to have error bar for " + massSelection + ' ' + fragKey + ' ' + subKey + ' but do not')
 
                     process[massSelection][fragKey]['Error'].append(thisError * subData['Adj. Rel. Abundance'])
                     
@@ -57,7 +60,7 @@ def readComputedData(JSONInput, error = 0, theory = {}):
                     
     return process
 
-def readComputedUValues(JSONInput, error = 0):
+def readComputedUValues(JSONInput, error = 0, UMNSub = '13C'):
     '''
     Takes a .json file from a computed dataset, extracts the full molecule U Values, and packages them into a dictionary. Allows the user to specify the relative error for each U value. 
     
@@ -70,8 +73,23 @@ def readComputedUValues(JSONInput, error = 0):
         
     '''
     UValues = {}
-    for subKey, subValue in JSONInput['Full Molecule'].items():
-        UValues[subKey] = {'Observed':subValue,'Error':subValue * error}
+    if isinstance(error, float):
+        # If input_value is a float, multiply every value in k by input_value
+        for subKey, subValue in JSONInput['Full Molecule'].items():
+            if subKey == UMNSub:
+                UValues[subKey] = {'Observed':subValue,'Error':subValue * error}
+
+    elif isinstance(error, dict):
+        # If input_value is a dictionary, iterate through k and multiply by the corresponding value
+        for subKey, subValue in JSONInput['Full Molecule'].items():
+            if subKey == UMNSub:
+                if subKey in error:
+                    UValues[subKey] = {'Observed':subValue,'Error':subValue * error[subKey]}
+                else:
+                    print(subKey + ' not found in input, defaulting to 1 per mil')
+                    UValues[subKey] = {'Observed':subValue,'Error':subValue * 0.001}
+    else:
+        raise ValueError("input_value must be either a float or a dictionary.")
             
     return UValues
 
