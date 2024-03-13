@@ -71,7 +71,6 @@ def get_file_paths_in_subfolders(folder_path, file_extensions='.isox'):
     Returns:
     - A dictionary where keys are subfolder names and values are lists of file paths.
     """
-    file_paths = {}
 
     # Walk through the folder and its subfolders
     for root, dirs, files in os.walk(folder_path):
@@ -88,10 +87,7 @@ def get_file_paths_in_subfolders(folder_path, file_extensions='.isox'):
                     if file_extensions is None or any(file.endswith(ext) for ext in file_extensions):
                         subfolder_files.append(file_path)
 
-            # Store the list of file paths in the dictionary
-            file_paths[subfolder] = subfolder_files
-
-    return file_paths
+    return subfolder_files
 
 def get_subfolder_paths(folder_path):
     """
@@ -119,12 +115,3 @@ def get_subfolder_paths(folder_path):
 
     return subfolder_paths
 
-def get_isoX_file_Smp_Std_Dictionary(parent_folder, file_extension='.isox'):
-    fragmentFolderPaths = get_subfolder_paths(parent_folder)
-    isoXFileNames = {}
-
-    for thisPath in fragmentFolderPaths:
-        file_names = get_file_paths_in_subfolders(thisPath, file_extension)
-        isoXFileNames[thisPath] = file_names
-
-    return isoXFileNames

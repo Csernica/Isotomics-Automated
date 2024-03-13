@@ -193,17 +193,7 @@ def processIsoXDf(IsoXDf, cullOn = None, cullAmt = 3, cullByTime = False, scanNu
     selectTopScan = thisFileData.loc[thisFileData.groupby(['isotopolog','scanNumber'])["intensity"].idxmax()]
     #sort by isotopolog to prepare for combine_substituted
     topScanDf = selectTopScan.groupby('isotopolog')
-
-    if splitDualInlet:
-        #find the bounds for processing
-        dualInletBounds = setDualInletTimes(startDeadObsReps)
-        print(dualInletBounds)
-            
-        for thisTimeIdx, thisTimeBounds in enumerate(dualInletBounds):
-            thisCombined = combine_Substituted_Peaks(topScanDf, cullByTime = True, scanNumber = scanNumber, timeBounds = thisTimeBounds,MNRelativeAbundance = MNRelativeAbundance)
-
-        else:
-            thisCombined = combine_Substituted_Peaks(topScanDf, cullOn = cullOn, cullAmt = cullAmt, cullByTime = cullByTime, scanNumber = scanNumber, timeBounds = timeBounds,MNRelativeAbundance = MNRelativeAbundance)
+    thisCombined = combine_Substituted_Peaks(topScanDf, cullOn = cullOn, cullAmt = cullAmt, cullByTime = cullByTime, scanNumber = scanNumber, timeBounds = timeBounds,MNRelativeAbundance = MNRelativeAbundance)
 
     return thisCombined
 
@@ -406,3 +396,4 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
         sampleOutputDict[file][fragment][ratio] = {'Average':avg,'StdDev':std,'StdError':stderr,'RelStdError':rse,'ShotNoise':SN}
         
     return sampleOutputDict
+
