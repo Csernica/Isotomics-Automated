@@ -9,7 +9,6 @@ import basicDeltaOperations as op
 import json
 import copy
 
-
 def process_fragment_column(col, fragSubset, molecularDf, fragmentationDictionary, renameCols):
     '''
     Read and process a single fragment column. Helper function for moleculeFromCsv.
