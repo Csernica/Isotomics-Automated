@@ -9,7 +9,7 @@ import itertools
 import pandas as pd
 import numpy as np
 
-def readIsoX(filePath):
+def readIsoX(fileName):
     '''
     Read in the 'combined' output from isoX; rename & drop columns as desired. 
 
@@ -19,7 +19,7 @@ def readIsoX(filePath):
     Outputs:
         IsoXDf: A dataframe with the data from the .csv output. 
     '''
-    IsoXDf = pd.read_csv(filePath, sep = '\t')
+    IsoXDf = pd.read_csv(fileName, sep = '\t')
 
     IsoXDf.drop(columns=['ions.incremental','peakResolution','basePeakIntensity','rawOvFtT','intensCompFactor','agc','analyzerTemperature','numberLockmassesFound'], inplace = True)
     IsoXDf.rename(columns={'scan.no':'scanNumber','time.min':'retTime','it.ms':'integTime','mzMeasured':'mass'},inplace = True)
@@ -175,37 +175,43 @@ def processIsoXDf(IsoXDf, cullOn = None, cullAmt = 3, cullByTime = False, scanNu
     Outputs:
         mergedList: mergedList, is a list of dataframes. Each dataframe corresponds to one file & has all information about each scan on a single line. 
     '''
+    filenames = list(set(IsoXDf.filename))
+    filenames.sort()
 
-    thisFileData = IsoXDf
-    
-    #Check to see if there is any issue with multiple entries being found for the same substitution
-    splitDf = thisFileData.groupby('isotopolog')
-    
-    for subName, subData in splitDf:
-        #IsoX will return multiple values if multiple peaks are observed with closely similar masses. This prints a warning if this is the case and where. Not as useful as it could be, because low abundance (e.g. start of scan) periods will often have warnings as well. 
-        g = splitDf.get_group(subName)['scanNumber'].value_counts()
-        if len(g[g>1]):
-            a=2
-            #print("Multiple Entries Found for file " + thisFileName + " sub " + subName)
-            #print(g[g>1])
+    mergedDict = {}
+    for thisFileName in filenames: 
+        thisFileData = IsoXDf[IsoXDf['filename'] == thisFileName]
 
-     #For each isotopolog & each scan, select only the observation with highest intensity
-    selectTopScan = thisFileData.loc[thisFileData.groupby(['isotopolog','scanNumber'])["intensity"].idxmax()]
-    #sort by isotopolog to prepare for combine_substituted
-    topScanDf = selectTopScan.groupby('isotopolog')
+        #Check to see if there is any issue with multiple entries being found for the same substitution
+        splitDf = thisFileData.groupby('isotopolog')
+        for subName, subData in splitDf:
+            #IsoX will return multiple values if multiple peaks are observed with closely similar masses. This prints a warning if this is the case and where. Not as useful as it could be, because low abundance (e.g. start of scan) periods will often have warnings as well. 
+            g = splitDf.get_group(subName)['scanNumber'].value_counts()
+            if len(g[g>1]):
+                a=2
+                #print("Multiple Entries Found for file " + thisFileName + " sub " + subName)
+                #print(g[g>1])
 
-    if splitDualInlet:
-        #find the bounds for processing
-        dualInletBounds = setDualInletTimes(startDeadObsReps)
-        print(dualInletBounds)
+        #For each isotopolog & each scan, select only the observation with highest intensity
+        selectTopScan = thisFileData.loc[thisFileData.groupby(['isotopolog','scanNumber'])["intensity"].idxmax()]
+        #sort by isotopolog to prepare for combine_substituted
+        topScanDf = selectTopScan.groupby('isotopolog')
+
+        if splitDualInlet:
+            #find the bounds for processing
+            dualInletBounds = setDualInletTimes(startDeadObsReps)
+            print(dualInletBounds)
             
-        for thisTimeIdx, thisTimeBounds in enumerate(dualInletBounds):
-            thisCombined = combine_Substituted_Peaks(topScanDf, cullByTime = True, scanNumber = scanNumber, timeBounds = thisTimeBounds,MNRelativeAbundance = MNRelativeAbundance)
+            for thisTimeIdx, thisTimeBounds in enumerate(dualInletBounds):
+                thisCombined = combine_Substituted_Peaks(topScanDf, cullByTime = True, scanNumber = scanNumber, timeBounds = thisTimeBounds,MNRelativeAbundance = MNRelativeAbundance)
+
+                mergedDict[thisFileName + str(thisTimeIdx)] = thisCombined
 
         else:
             thisCombined = combine_Substituted_Peaks(topScanDf, cullOn = cullOn, cullAmt = cullAmt, cullByTime = cullByTime, scanNumber = scanNumber, timeBounds = timeBounds,MNRelativeAbundance = MNRelativeAbundance)
+            mergedDict[thisFileName] = thisCombined
 
-    return thisCombined
+    return mergedDict
 
 def output_Raw_File_MN_Rel_Abundance(mergedDf, subNameList, massStr = None):
     #Initialize output dictionary 
@@ -311,19 +317,15 @@ def output_Raw_File_Ratios(mergedDf, subNameList, mostAbundant = True, massStr =
                         
     return rtnDict
 
-def calc_Folder_Output(isoXFilePaths, output_path, outputToCsv = True, cullOn = None, cullAmt = 3, debug = False, cullByTime = False, scanNumber = False, timeBounds = (0,0), MNRelativeAbundance = False, splitDualInlet = False, startDeadObsReps = (0,2,5,7)):
+def calc_Folder_Output(isoXFileName, cullOn = None, cullAmt = 3, debug = False, cullByTime = False, scanNumber = False, timeBounds = (0,0), MNRelativeAbundance = False, splitDualInlet = False, startDeadObsReps = (0,2,5,7)):
     '''
    
     '''
     if cullByTime and splitDualInlet:
         raise Exception("Do not use both cull times and the dual inlet time control in the same method")
-    
-    mergedDict = {}
 
-    for isoXFileName in isoXFilePaths:
-        thisIsoX = readIsoX(isoXFileName)
-        thisDict = processIsoXDf(thisIsoX, cullOn = cullOn, cullAmt = cullAmt, cullByTime = cullByTime, scanNumber = scanNumber, timeBounds = timeBounds, MNRelativeAbundance = MNRelativeAbundance, splitDualInlet = splitDualInlet, startDeadObsReps = startDeadObsReps)
-        mergedDict[str(isoXFileName)] = thisDict
+    IsoX = readIsoX(isoXFileName)
+    mergedDict = processIsoXDf(IsoX, cullOn = cullOn, cullAmt = cullAmt, cullByTime = cullByTime, scanNumber = scanNumber, timeBounds = timeBounds, MNRelativeAbundance = MNRelativeAbundance, splitDualInlet = splitDualInlet, startDeadObsReps = startDeadObsReps)
 
     rtnAllFilesDF = []
     allOutputDict = {}
@@ -369,10 +371,6 @@ def calc_Folder_Output(isoXFilePaths, output_path, outputToCsv = True, cullOn = 
     else:
         #sort by fragment and isotope ratio, output to csv
         rtnAllFilesDF = rtnAllFilesDF.sort_values(by=['Fragment', 'IsotopeRatio'], axis=0, ascending=True)
-
-    if outputToCsv == True:
-        rtnAllFilesDF = rtnAllFilesDF.sort_values(by=['Fragment', 'IsotopeRatio'], axis=0, ascending=True)
-        rtnAllFilesDF.to_csv(str(output_path + '/' + "all_data_output.csv"), index = False, header=True)
    
     return rtnAllFilesDF, mergedDict, allOutputDict
 
@@ -406,5 +404,3 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
         sampleOutputDict[file][fragment][ratio] = {'Average':avg,'StdDev':std,'StdError':stderr,'RelStdError':rse,'ShotNoise':SN}
         
     return sampleOutputDict
-
-def 
