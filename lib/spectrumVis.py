@@ -30,7 +30,7 @@ def massChangeVsUnsub(subKey):
 
     return mc
 
-def fullSpectrumVis(fullMolecule, molecularDataFrame, figsize = (8,4), massError = 0, lowAbundanceCutOff = 0, xlim = (), ylim = ()):
+def fullSpectrumVis(fullMolecule, molecularDataFrame, figsize = (8,4), massError = 0, lowAbundanceCutOff = 0, xlim = (), ylim = (), outputIsotopologs = False, tolerance = 0.1):
     '''
     Takes in some predicted spectral data for the full molecule and outputs a plot of that spectrum. Plots these as relative abundances. 
 
@@ -44,6 +44,8 @@ def fullSpectrumVis(fullMolecule, molecularDataFrame, figsize = (8,4), massError
         lowAbundanceCutOff: Do not show peaks below this abundance. 
         xlim: Override the xlimits of the plot
         ylim: Override the ylimits of the plot. 
+        outputIsotopologs: If true, outputs a isotoplogs.tsv file with the peaks in the spectrum. 
+        tolerance: The tolerance setting to use for an output isotopologs.tsv. 
 
     Outputs:
         None. Displays a plot.
@@ -91,10 +93,13 @@ def fullSpectrumVis(fullMolecule, molecularDataFrame, figsize = (8,4), massError
     if ylim:
         ax.set_ylim(*ylim)
     ax.set_ylabel("Relative Abundance")
+
+    if outputIsotopologs:
+        constructIsotopologsTSV('Molecular Average', subPlot, massPlot, tolerance = tolerance, file_path = 'isotopologsMolecularAverage.tsv')
             
     plt.show()
 
-def MNSpectrumVis(molecularDataFrame, fragKey, predictedMeasurement, MNKey, MNDict, lowAbundanceCutOff = 0, massError = 0, xlim = (), ylim = ()):
+def MNSpectrumVis(molecularDataFrame, fragKey, predictedMeasurement, MNKey, MNDict, lowAbundanceCutOff = 0, massError = 0, xlim = (), ylim = (), outputIsotopologs = False, tolerance = 0.1):
     '''
     Visualizes the fragmented spectrum of an M+N experiment based on the abundances of fragment peaks.
 
@@ -108,6 +113,8 @@ def MNSpectrumVis(molecularDataFrame, fragKey, predictedMeasurement, MNKey, MNDi
         massError: In amu, shifts all observed peaks by this amount. 
         xlim: Set an xlim for the plot, as (xlow, xhigh)
         ylim: as xlim. 
+        outputIsotopologs: If true, outputs a isotoplogs.tsv file with the peaks in the spectrum. 
+        tolerance: The tolerance setting to use for an output isotopologs.tsv. 
 
     Outputs:
         None. Displays plot. 
@@ -141,5 +148,39 @@ def MNSpectrumVis(molecularDataFrame, fragKey, predictedMeasurement, MNKey, MNDi
     if ylim:
         ax.set_ylim(*ylim)
     ax.set_ylabel("Relative Abundance")
+
+    if outputIsotopologs:
+        constructIsotopologsTSV(fragKey, subPlot, massPlot, tolerance = tolerance, file_path = 'isotopologs' + fragKey + '.tsv')
     
     plt.show()
+
+def constructIsotopologsTSV(parentName, subList, massList, tolerance = 0.1, file_path = 'isotopologs.tsv'):
+    '''
+    Construct an 'isotopologs.tsv' file that can be used for isoX. This function is housed in 'spectrumVis' because it generates the .tsv based on the predictions used in the spectrum. 
+
+    Inputs:
+        parentName: becomes 'compound' in isoX. Written as 'parent' instead of compound because it could be used to correspond to a fragment. 
+        subList: A list of the substitutions; 'isotopolog' column in isoX. 
+        massList: A list of masses; 'm/z' in isoX. 
+        tolerance: Applies the same tolerance to each peak. 
+        file_path: Desired output file path. 
+    '''
+    compoundList = [parentName] * len(subList)
+    toleranceList = [tolerance] * len(subList)
+    zList = [1] * len(subList)
+
+    # Create a DataFrame
+    isotopologsDf = pd.DataFrame({
+        'Compound': compoundList,
+        'Isotopolog': subList,
+        'm/z': massList,
+        'Tolerance [mmu]': toleranceList,
+        'z': zList
+    })
+
+    isotopologsDf['m/z'] = isotopologsDf['m/z'].apply(lambda x: f"{x:.5f}")
+
+    # Write to a .tsv file with a custom header row
+    with open(file_path, 'w', newline='') as f:
+        f.write('#Compound\tIsotopolog\tm/z\tTolerance [mmu]\tz\n')  # Write the header row
+        isotopologsDf.to_csv(f, sep='\t', index=False, header = False)  # Append the DataFrame below the header row
