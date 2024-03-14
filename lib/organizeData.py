@@ -71,13 +71,15 @@ def get_file_paths_in_subfolders(folder_path, file_extensions='.isox'):
     Returns:
     - A dictionary where keys are subfolder names and values are lists of file paths.
     """
+    subfolder_files = []
+    subfolder_file_order = []
 
     # Walk through the folder and its subfolders
     for root, dirs, files in os.walk(folder_path):
         # Iterate through subfolders
         for subfolder in dirs:
             subfolder_path = os.path.join(root, subfolder)
-            subfolder_files = []
+
 
             # Collect paths of files within the subfolder
             for file in os.listdir(subfolder_path):
@@ -86,8 +88,9 @@ def get_file_paths_in_subfolders(folder_path, file_extensions='.isox'):
                     # Check if the file has the desired extension
                     if file_extensions is None or any(file.endswith(ext) for ext in file_extensions):
                         subfolder_files.append(file_path)
+                        subfolder_file_order.append(os.path.basename(os.path.dirname(file_path)))
 
-    return subfolder_files
+    return subfolder_files, subfolder_file_order
 
 def get_subfolder_paths(folder_path):
     """
@@ -115,3 +118,46 @@ def get_subfolder_paths(folder_path):
 
     return subfolder_paths
 
+
+def dataframe_to_nested_dict(df):
+    """
+    Convert a DataFrame into a nested dictionary, grouped by two columns.
+
+    Args:
+        df (pandas.DataFrame): The DataFrame to be converted.
+
+    Returns:
+        dict: A nested dictionary where keys are values of the first grouping column,
+              and values are dictionaries where keys are values of the second grouping column,
+              and values are dictionaries containing the remaining columns' values.
+
+    Example:
+        >>> data = {'Fragment': ['A', 'A', 'B', 'B'],
+                    'MN Relative Abundance': ['X', 'Y', 'X', 'Y'],
+                    'Value1': [1, 2, 3, 4],
+                    'Value2': [5, 6, 7, 8]}
+        >>> df = pd.DataFrame(data)
+        >>> nested_dict = dataframe_to_nested_dict(df)
+        >>> print(nested_dict)
+        {'A': {'X': {'Value1': 1, 'Value2': 5}, 'Y': {'Value1': 2, 'Value2': 6}},
+         'B': {'X': {'Value1': 3, 'Value2': 7}, 'Y': {'Value1': 4, 'Value2': 8}}}
+    """
+    nested_dict = {}
+
+    
+    # Group by columns 'Fragment' and 'MN Relative Abundance' and iterate over groups
+    for (A, B), group_df in df.groupby(['Fragment', 'MN Relative Abundance']):
+        if A == 'full_molecular_average':
+            continue
+
+        # Extract values from the group
+        value_data = group_df.drop(columns=['Fragment', 'MN Relative Abundance']).to_dict(orient='records')[0]
+        
+        # Nested dictionary creation
+        if A not in nested_dict:
+            nested_dict[A] = {}
+        
+        # Assign values to the nested dictionary
+        nested_dict[A][B] = value_data
+        
+    return nested_dict

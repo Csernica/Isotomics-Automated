@@ -8,6 +8,7 @@ import copy
 import itertools
 import pandas as pd
 import numpy as np
+import os
 
 def readIsoX(filePath):
     '''
@@ -301,7 +302,7 @@ def output_Raw_File_Ratios(mergedDf, subNameList, mostAbundant = True, massStr =
                         
     return rtnDict
 
-def calc_Folder_Output(isoXFilePaths, output_path, outputToCsv = True, cullOn = None, cullAmt = 3, debug = False, cullByTime = False, scanNumber = False, timeBounds = (0,0), MNRelativeAbundance = False, splitDualInlet = False, startDeadObsReps = (0,2,5,7)):
+def calc_Folder_Output(isoXFilePaths, output_path, smpStdOrdering = None, outputToCsv = True, cullOn = None, cullAmt = 3, debug = False, cullByTime = False, scanNumber = False, timeBounds = (0,0), MNRelativeAbundance = False, splitDualInlet = False, startDeadObsReps = (0,2,5,7)):
     '''
    
     '''
@@ -311,23 +312,29 @@ def calc_Folder_Output(isoXFilePaths, output_path, outputToCsv = True, cullOn = 
     mergedDict = {}
 
     for isoXFileName in isoXFilePaths:
+        thisShorterName = os.path.basename(os.path.dirname(os.path.dirname(isoXFileName)))
         thisIsoX = readIsoX(isoXFileName)
         thisDict = processIsoXDf(thisIsoX, cullOn = cullOn, cullAmt = cullAmt, cullByTime = cullByTime, scanNumber = scanNumber, timeBounds = timeBounds, MNRelativeAbundance = MNRelativeAbundance, splitDualInlet = splitDualInlet, startDeadObsReps = startDeadObsReps)
         mergedDict[str(isoXFileName)] = thisDict
 
     rtnAllFilesDF = []
     allOutputDict = {}
-    for thisFileName, thisFileData in mergedDict.items():
+    for thisFileIdx, (thisFileName, thisFileData) in enumerate(mergedDict.items()):
+        if smpStdOrdering == None:
+            thisFileSmpStd = 'N/A'
+        else:
+            thisFileSmpStd = smpStdOrdering[thisFileIdx]
+
         thisMergedDf = thisFileData['mergedDf']
         thisSubNameList = thisFileData['subNameList']
         if debug:
             print(thisFileName)
         if MNRelativeAbundance:
-            header = ["FileName", "Fragment", "MN Relative Abundance", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar']
-            thisFileOutput = output_Raw_File_MN_Rel_Abundance(thisMergedDf, thisSubNameList)
+            header = ["FileName", "Fragment", "MN Relative Abundance", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar', 'File Type']
+            thisFileOutput = output_Raw_File_MN_Rel_Abundance(thisMergedDf, thisSubNameList, massStr=thisShorterName)
         else:
-            header = ["FileName", "Fragment", "IsotopeRatio", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar']
-            thisFileOutput = output_Raw_File_Ratios(thisMergedDf, thisSubNameList)
+            header = ["FileName", "Fragment", "IsotopeRatio", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar', 'File Type']
+            thisFileOutput = output_Raw_File_Ratios(thisMergedDf, thisSubNameList, massStr=thisShorterName)
 
         allOutputDict[thisFileName] = thisFileOutput
 
@@ -345,7 +352,7 @@ def calc_Folder_Output(isoXFilePaths, output_path, outputToCsv = True, cullOn = 
                 thisShotNoise = subData["ShotNoiseLimit"]
                 thisTic = subData['tic']
                 thisTicVar = subData['TICVar']
-                thisRow = [thisFileName, fragKey, subKey, thisRVal, thisStdDev, thisStError,thisRelStError, thisShotNoise, thisTic, thisTicVar] 
+                thisRow = [thisFileName, fragKey, subKey, thisRVal, thisStdDev, thisStError,thisRelStError, thisShotNoise, thisTic, thisTicVar, thisFileSmpStd] 
                 rtnAllFilesDF.append(thisRow)
 
     rtnAllFilesDF = pd.DataFrame(rtnAllFilesDF)
@@ -360,10 +367,7 @@ def calc_Folder_Output(isoXFilePaths, output_path, outputToCsv = True, cullOn = 
         #sort by fragment and isotope ratio, output to csv
         rtnAllFilesDF = rtnAllFilesDF.sort_values(by=['Fragment', 'IsotopeRatio'], axis=0, ascending=True)
 
-    if outputToCsv == True:
-        rtnAllFilesDF = rtnAllFilesDF.sort_values(by=['Fragment', 'IsotopeRatio'], axis=0, ascending=True)
-        rtnAllFilesDF.to_csv(str(output_path + '/' + "all_data_output.csv"), index = False, header=True)
-   
+
     return rtnAllFilesDF, mergedDict, allOutputDict
 
 def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
