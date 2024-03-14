@@ -9,6 +9,7 @@ import itertools
 import pandas as pd
 import numpy as np
 import os
+import organizeData
 
 def readIsoX(filePath):
     '''
@@ -400,4 +401,46 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
         sampleOutputDict[file][fragment][ratio] = {'Average':avg,'StdDev':std,'StdError':stderr,'RelStdError':rse,'ShotNoise':SN}
         
     return sampleOutputDict
+
+def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToCSV=False, csvOutputPath = 'output.csv', file_extension = '.isox', processed_data_subfolder='Processed Data', aquisition_length = (0,0)):
+    allDataReturnedDFList = []
+    MN_RELATIVE_ABUNDANCE = False
+    allSortedMeanIsotopeRatios = []
+    
+    for thisFolder in fragmentFolderPaths:
+        isoXFileNames, smpStdOrdering = organizeData.get_file_paths_in_subfolders(thisFolder, file_extension)
+        thisFolderName = os.path.basename(thisFolder) 
+        if thisFolderName == 'full_molecular_average':
+            MN_RELATIVE_ABUNDANCE = False
+        else:
+            MN_RELATIVE_ABUNDANCE = True
+
+        rtnAllFilesDF, mergedDict, allOutputDict = calc_Folder_Output(isoXFileNames, processed_data_subfolder, smpStdOrdering = smpStdOrdering, outputToCsv = True, cullOn = None, cullAmt = 3, debug = False, cullByTime = False, scanNumber = False, timeBounds = aquisition_length, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE, splitDualInlet = False, startDeadObsReps = (0,2,5,7))
+        allDataReturnedDFList.append(rtnAllFilesDF)
+        thisSampleOutputDict = folderOutputToDict(rtnAllFilesDF, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE)
+    
+        if  MN_RELATIVE_ABUNDANCE == True:
+            thisSortedAverageDF = rtnAllFilesDF.sort_values(by=['MN Relative Abundance', 'File Type'])
+            means = thisSortedAverageDF.groupby(['MN Relative Abundance', 'File Type']).mean(numeric_only = True).reset_index()
+            means['Fragment'] = thisFolderName
+
+        else:
+            thisSortedAverageDF = rtnAllFilesDF.sort_values(by=['IsotopeRatio', 'File Type'])
+            means = thisSortedAverageDF.groupby(['IsotopeRatio', 'File Type']).mean(numeric_only = True).reset_index()
+            means['Fragment'] = thisFolderName
+        
+        allSortedMeanIsotopeRatios.append(means)
+
+    rtnData = pd.concat(allDataReturnedDFList, ignore_index=True)
+    rtnMeans = pd.concat(allSortedMeanIsotopeRatios, ignore_index=True)
+
+    meansDict = organizeData.dataframe_to_nested_dict(rtnMeans)
+
+    #Output data frame to csv
+    if outputToCSV == True:
+        rtnData = rtnData.sort_values(by=['Fragment'], axis=0, ascending=True)
+        rtnData.to_csv(str(cwd) + '/Processed Data/'+ csvOutputPath, index = False, header=True)
+    
+    return rtnMeans, meansDict
+
 
