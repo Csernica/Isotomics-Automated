@@ -108,3 +108,43 @@ def internalStabilityScreenSubsequence(mergedDict, MNRelativeAbundance = False, 
             allDev = subsequenceOutlierDetection(series, priorSubsequenceLength = priorSubsequenceLength, testSubsequenceLength = testSubsequenceLength)
             if max(allDev) > thresholdConstant:
                 print("Failed Subsequence Detection " +  fileName + " " + iso + " with a value of " + "{:.2f}".format(max(allDev)))
+
+
+def visualizeTICVersusTime(fileName, mergedDict, targetRatio='13C/Unsub',scan_averaging_number = 50):
+    '''
+    Visualize the TIC versus time for a single file in the merged dict
+    '''
+    fig, axes = plt.subplots(nrows = 1, ncols = 2, figsize = (9*0.8,3*0.8), dpi = 300, gridspec_kw={'width_ratios': [2, 1]})
+    thisDf = mergedDict[fileName]['mergedDf']
+    series = thisDf[targetRatio]
+    l = len(series)
+    serrs = []
+
+    cAx = axes[0]
+    movingAvg = []
+    for i in tqdm(range(scan_averaging_number,len(series)-scan_averaging_number)):
+        current = series[i-scan_averaging_number:i+scan_averaging_number]
+        mean = current.mean()
+        movingAvg.append(mean)
+
+    cAx.scatter(range(len(series)),series, s = 8, color = 'darkgreen', alpha = 0.3)
+    cAx.plot(range(50,len(movingAvg)+50),movingAvg, label = "Moving Average of" + str(scan_averaging_number*2)+ "Scans", color = 'tab:orange')
+    cAx.set_ylabel(targetRatio, fontsize = 16)
+    cAx.set_xlabel("Scan Number")
+    cAx.legend(loc = 'upper left')
+
+    cAx = axes[1]
+    cAx.hist(thisDf[thisDf['massUnsub']!=0]['massUnsub'], 30, density=False, facecolor='w',edgecolor = 'k', alpha=1, orientation=u'horizontal')
+
+    cAx.yaxis.set_label_position("right")
+    cAx.set_xlabel("Number of Scans")
+
+    cAx.legend()
+
+    cAx.spines['right'].set_visible(False)
+    cAx.spines['top'].set_visible(False)
+
+    cAx.spines['top'].set_visible(False)
+    cAx.spines['right'].set_visible(False)
+    
+    plt.tight_layout()

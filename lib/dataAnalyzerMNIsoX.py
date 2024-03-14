@@ -406,9 +406,13 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
     return sampleOutputDict
 
 def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToCSV=False, csvOutputPath = 'output.csv', file_extension = '.isox', processed_data_subfolder='Processed Data', aquisition_length = (0,0)):
+    '''
+    Process statistics on isox files and output processed data results. Prepare data to run M+1 model
+    '''
     allDataReturnedDFList = []
     MN_RELATIVE_ABUNDANCE = False
     allSortedMeanIsotopeRatios = []
+    allMergedDict = []
     
     for thisFolder in fragmentFolderPaths:
         isoXFileNames, smpStdOrdering = organizeData.get_file_paths_in_subfolders(thisFolder, file_extension)
@@ -420,7 +424,7 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
 
         rtnAllFilesDF, mergedDict, allOutputDict = calc_Folder_Output(isoXFileNames, processed_data_subfolder, smpStdOrdering = smpStdOrdering, outputToCsv = True, cullOn = None, cullAmt = 3, debug = False, cullByTime = False, scanNumber = False, timeBounds = aquisition_length, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE, splitDualInlet = False, startDeadObsReps = (0,2,5,7))
         allDataReturnedDFList.append(rtnAllFilesDF)
-        thisSampleOutputDict = folderOutputToDict(rtnAllFilesDF, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE)
+        allMergedDict.append(mergedDict)
     
         if  MN_RELATIVE_ABUNDANCE == True:
             thisSortedAverageDF = rtnAllFilesDF.sort_values(by=['MN Relative Abundance', 'File Type'])
@@ -433,6 +437,10 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
             means['Fragment'] = thisFolderName
         
         allSortedMeanIsotopeRatios.append(means)
+    
+    rtnMergedDict = {}
+    for d in allMergedDict:
+        rtnMergedDict.update(d)
 
     rtnData = pd.concat(allDataReturnedDFList, ignore_index=True)
     rtnMeans = pd.concat(allSortedMeanIsotopeRatios, ignore_index=True)
@@ -442,4 +450,6 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
         rtnData = rtnData.sort_values(by=['Fragment'], axis=0, ascending=True)
         rtnData.to_csv(str(cwd) + '/Processed Data/'+ csvOutputPath, index = False, header=True)
     
-    return rtnMeans
+    return rtnMeans, rtnMergedDict
+
+
