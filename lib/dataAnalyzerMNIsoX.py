@@ -10,6 +10,9 @@ import pandas as pd
 import numpy as np
 import os
 import organizeData
+import re 
+import numpy as np
+import readCSVAndSimulate as sim
 
 def readIsoX(filePath):
     '''
@@ -440,5 +443,3 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
         rtnData.to_csv(str(cwd) + '/Processed Data/'+ csvOutputPath, index = False, header=True)
     
     return rtnMeans
-
-

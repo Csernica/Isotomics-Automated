@@ -143,7 +143,6 @@ def readObservedData(sampleOutputDict, MNKey = "M1", theory = {}, standard = [],
         process[shortFileKey] = {}
         process[shortFileKey][MNKey] = {}
         for fragKey, fragInfo in fileInfo.items():
-            print(fragKey)
             newFragKey = fragKey
             if fragKey in processFragKeys:
                 newFragKey = processFragKeys[fragKey] 
