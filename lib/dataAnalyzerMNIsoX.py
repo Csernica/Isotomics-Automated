@@ -434,13 +434,11 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
     rtnData = pd.concat(allDataReturnedDFList, ignore_index=True)
     rtnMeans = pd.concat(allSortedMeanIsotopeRatios, ignore_index=True)
 
-    meansDict = organizeData.dataframe_to_nested_dict(rtnMeans)
-
     #Output data frame to csv
     if outputToCSV == True:
         rtnData = rtnData.sort_values(by=['Fragment'], axis=0, ascending=True)
         rtnData.to_csv(str(cwd) + '/Processed Data/'+ csvOutputPath, index = False, header=True)
     
-    return rtnMeans, meansDict
+    return rtnMeans
 
 

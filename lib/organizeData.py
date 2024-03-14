@@ -119,45 +119,21 @@ def get_subfolder_paths(folder_path):
     return subfolder_paths
 
 
-def dataframe_to_nested_dict(df):
+def prepareDataForM1(rtnMeans):
     """
-    Convert a DataFrame into a nested dictionary, grouped by two columns.
 
-    Args:
-        df (pandas.DataFrame): The DataFrame to be converted.
-
-    Returns:
-        dict: A nested dictionary where keys are values of the first grouping column,
-              and values are dictionaries where keys are values of the second grouping column,
-              and values are dictionaries containing the remaining columns' values.
-
-    Example:
-        >>> data = {'Fragment': ['A', 'A', 'B', 'B'],
-                    'MN Relative Abundance': ['X', 'Y', 'X', 'Y'],
-                    'Value1': [1, 2, 3, 4],
-                    'Value2': [5, 6, 7, 8]}
-        >>> df = pd.DataFrame(data)
-        >>> nested_dict = dataframe_to_nested_dict(df)
-        >>> print(nested_dict)
-        {'A': {'X': {'Value1': 1, 'Value2': 5}, 'Y': {'Value1': 2, 'Value2': 6}},
-         'B': {'X': {'Value1': 3, 'Value2': 7}, 'Y': {'Value1': 4, 'Value2': 8}}}
     """
-    nested_dict = {}
+    forM1Algo = {'Std':{},'Smp':{}}
 
-    
     # Group by columns 'Fragment' and 'MN Relative Abundance' and iterate over groups
-    for (A, B), group_df in df.groupby(['Fragment', 'MN Relative Abundance']):
-        if A == 'full_molecular_average':
+    organizeBy = ['File Type', 'Fragment','MN Relative Abundance']
+    for (smpStd, fragment, isotope), group_df in rtnMeans.groupby(organizeBy):
+        if fragment == 'full_molecular_average':
             continue
-
         # Extract values from the group
-        value_data = group_df.drop(columns=['Fragment', 'MN Relative Abundance']).to_dict(orient='records')[0]
-        
-        # Nested dictionary creation
-        if A not in nested_dict:
-            nested_dict[A] = {}
+        thisIsotopeData = group_df.drop(columns=organizeBy).to_dict(orient='records')[0]
         
         # Assign values to the nested dictionary
-        nested_dict[A][B] = value_data
-        
-    return nested_dict
+        forM1Algo[smpStd].setdefault(fragment, {})[isotope] = thisIsotopeData
+
+    return forM1Algo
