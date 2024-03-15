@@ -408,6 +408,17 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
 def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToCSV=False, csvOutputPath = 'output.csv', file_extension = '.isox', processed_data_subfolder='Processed Data', aquisition_length = (0,0)):
     '''
     Process statistics on isox files and output processed data results. Prepare data to run M+1 model
+
+    Inputs:
+        fragmentFolderPaths: 
+        cwd: The current working directory. 
+        outputToCSV: If True, output the processed data as a .csv. 
+        csvOutputPath: Specifies the output path for that .csv. 
+        file_extension 
+    
+    Outputs:
+        rtnMeans: A dataframe containing information about the mean sample and standard values for each isotope of each fragment. 
+        rtnMergedDict: A dictionary, where keys are fileNames, and values are dictionaries. The inner dictionaries contain 'subNameList' (metadata used in computations) and 'mergedDf', a dataframe containing the scan-by-scan data for that file. 
     '''
     allDataReturnedDFList = []
     MN_RELATIVE_ABUNDANCE = False
@@ -446,10 +457,36 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
     rtnMeans = pd.concat(allSortedMeanIsotopeRatios, ignore_index=True)
 
     #Output data frame to csv
-    if outputToCSV == True:
+    if outputToCSV:
         rtnData = rtnData.sort_values(by=['Fragment'], axis=0, ascending=True)
         rtnData.to_csv(str(cwd) + '/Processed Data/'+ csvOutputPath, index = False, header=True)
     
     return rtnMeans, rtnMergedDict
 
+def prepareDataForM1(rtnMeans):
+    '''
+    Processes the data from rtnMeans into a format that can be read into the M+1 algorithm. 
 
+    Inputs:
+        rtnMeans: A dataframe containing information about the mean sample and standard values for each isotope of each fragment. The output of processIndividualAndAverageIsotopeRatios.
+
+    Outputs:
+        forM1Algo: A dictionary, structured like {'Std':{'44':'13C':{'Average':avg,      StdDev':std,'StdError':stderr,'RelStdError':rse,'ShotNoise':SN
+        }}}
+
+        The parent dictionary contains 'Std' and 'Smp'. The final dictionary contains data about that acquisition. 
+    '''
+    forM1Algo = {'Std':{},'Smp':{}}
+
+    # Group by columns 'Fragment' and 'MN Relative Abundance' and iterate over groups
+    organizeBy = ['File Type', 'Fragment','MN Relative Abundance']
+    for (smpStd, fragment, isotope), group_df in rtnMeans.groupby(organizeBy):
+        if fragment == 'full_molecular_average':
+            continue
+        # Extract values from the group
+        thisIsotopeData = group_df.drop(columns=organizeBy).to_dict(orient='records')[0]
+        
+        # Assign values to the nested dictionary
+        forM1Algo[smpStd].setdefault(fragment, {})[isotope] = thisIsotopeData
+
+    return forM1Algo
