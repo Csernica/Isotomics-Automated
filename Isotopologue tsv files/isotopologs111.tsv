@@ -1,0 +1,5 @@
+#Compound	Isotopolog	m/z	Tolerance [mmu]	z
+111	Unsub	95.04969	0.1	1
+111	D	96.05597	0.1	1
+111	17O	96.05391	0.1	1
+111	13C	96.05304	0.1	1
