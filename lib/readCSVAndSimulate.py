@@ -266,24 +266,27 @@ def simulateMeasurement(initializedMolecule, abundanceThreshold = 0, UValueList 
 
 
 
-def plotOutput(simulationOutput, relativeDeltasActual, ylim = False):
+def plotOutput(simulationOutput, relativeDeltasActual = None, ylim = False):
     '''
     Simple function to plot the output of a simulation.
 
     Inputs:
         simulationOutput: A dataframe containing the results of a M+1 simulation. returned by simulateSmpStd. 
-        relativeDeltasActual: A list, giving the actual delta values for the sample standard comparison. The ordering of the list should be the same as the indices of simulationOutput. 
+        relativeDeltasActual: A list, giving the actual delta values for the sample standard comparison. The ordering of the list should be the same as the indices of simulationOutput. If "None", do not plot these. 
 
     Outputs:
         None. Constructs a plot. 
     '''
     fig, ax = plt.subplots(figsize = (8,4))
 
-    plt.scatter(range(len(relativeDeltasActual)),relativeDeltasActual, label = 'Actual', marker = 's', color = 'r')
-    plt.errorbar(range(len(relativeDeltasActual)),simulationOutput['Relative Deltas'],simulationOutput['Relative Deltas Error'], fmt = 'o',c='k',capsize = 5,
+    computedDeltas, computedDeltasErr = simulationOutput['Relative Deltas'], simulationOutput['Relative Deltas Error']
+
+    if relativeDeltasActual:
+        plt.scatter(range(len(relativeDeltasActual)),relativeDeltasActual, label = 'Actual', marker = 's', color = 'r')
+    plt.errorbar(range(len(computedDeltas)),computedDeltas,computedDeltasErr, fmt = 'o',c='k',capsize = 5,
                 label = 'Computed')
     plt.legend()
-    ax.set_xticks(range(len(relativeDeltasActual)))
+    ax.set_xticks(range(len(computedDeltas)))
     ax.set_xticklabels(simulationOutput.index, rotation = 45)
     ax.set_ylabel("$\delta_{STD}$")
     if ylim:
@@ -366,6 +369,6 @@ def simulateSmpStd(path, deltasStd, deltasSmp, deltasStdAppx, abundanceThreshold
     if plot:
         relativeDeltasActual = [op.compareRelDelta(atomID, delta1, delta2) for atomID, delta1, delta2 in zip(forwardModel['molecularDataFrame']['IDS'], deltasStd, deltasSmp)]
 
-        plotOutput(simulationOutput, relativeDeltasActual)
+        plotOutput(simulationOutput, relativeDeltasActual = relativeDeltasActual)
 
     return simulationOutput
