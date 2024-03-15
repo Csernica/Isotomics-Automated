@@ -115,10 +115,8 @@ def moleculeFromCsv(path, deltas = False, fragSubset = None):
     #rename the columns
     molecularDf.rename(columns=renameCols, inplace=True)
 
-    if not deltas:
-        molecularDf['deltas'] = molecularDf['Standard 1 Delta Values']
-    else:
-        molecularDf['deltas'] = deltas
+    molecularDf['deltas'] = deltas
+    
     #Construct output
     initializedMolecule = {'molecularDataFrame':molecularDf,
                            'expandedFrags':expandedFrags,

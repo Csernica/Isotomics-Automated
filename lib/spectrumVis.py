@@ -2,6 +2,7 @@ import fragmentAndSimulate as fas
 import pandas as pd
 import matplotlib.pyplot as plt
 import calcIsotopologues as ci
+import os
 
 MASS_CHANGE = {'13C': 13.00335484 - 12,
             '15N': 15.00010889 - 14.003074,
@@ -165,6 +166,15 @@ def constructIsotopologsTSV(parentName, subList, massList, tolerance = 0.1, file
         tolerance: Applies the same tolerance to each peak. 
         file_path: Desired output file path. 
     '''
+    FOLDER_NAME = 'Isotopologue tsv files'
+
+    if not os.path.exists(FOLDER_NAME):
+        os.makedirs(FOLDER_NAME)
+        print(f"Folder '{FOLDER_NAME}' created successfully.")
+    else:
+        print(f"Folder '{FOLDER_NAME}' already exists.")
+
+    export_path = os.path.join(FOLDER_NAME, file_path)
     compoundList = [parentName] * len(subList)
     toleranceList = [tolerance] * len(subList)
     zList = [1] * len(subList)
@@ -181,6 +191,6 @@ def constructIsotopologsTSV(parentName, subList, massList, tolerance = 0.1, file
     isotopologsDf['m/z'] = isotopologsDf['m/z'].apply(lambda x: f"{x:.5f}")
 
     # Write to a .tsv file with a custom header row
-    with open(file_path, 'w', newline='') as f:
+    with open(export_path, 'w', newline='') as f:
         f.write('#Compound\tIsotopolog\tm/z\tTolerance [mmu]\tz\n')  # Write the header row
         isotopologsDf.to_csv(f, sep='\t', index=False, header = False)  # Append the DataFrame below the header row
