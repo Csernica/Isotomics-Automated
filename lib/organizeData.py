@@ -118,22 +118,3 @@ def get_subfolder_paths(folder_path):
 
     return subfolder_paths
 
-
-def prepareDataForM1(rtnMeans):
-    """
-
-    """
-    forM1Algo = {'Std':{},'Smp':{}}
-
-    # Group by columns 'Fragment' and 'MN Relative Abundance' and iterate over groups
-    organizeBy = ['File Type', 'Fragment','MN Relative Abundance']
-    for (smpStd, fragment, isotope), group_df in rtnMeans.groupby(organizeBy):
-        if fragment == 'full_molecular_average':
-            continue
-        # Extract values from the group
-        thisIsotopeData = group_df.drop(columns=organizeBy).to_dict(orient='records')[0]
-        
-        # Assign values to the nested dictionary
-        forM1Algo[smpStd].setdefault(fragment, {})[isotope] = thisIsotopeData
-
-    return forM1Algo

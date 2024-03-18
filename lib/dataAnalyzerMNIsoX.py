@@ -12,6 +12,7 @@ import organizeData
 import re 
 import numpy as np
 import readCSVAndSimulate as sim
+import dataScreenIsoX
 
 def readIsoX(filePath):
     '''
@@ -96,9 +97,9 @@ def calc_MN_Rel_Abundance(mergedDf, subNameList):
     
 def cull_By_Time(mergedDf, timeBounds, scanNumber = False):
     if scanNumber:
-        mergedDf = mergedDf[mergedDf['scanNumber'].between(timeBounds[0], timeBounds[1], inclusive=True)]
+        mergedDf = mergedDf[mergedDf['scanNumber'].between(timeBounds[0], timeBounds[1], inclusive='both')]
     else:
-        mergedDf = mergedDf[mergedDf['retTime'].between(timeBounds[0], timeBounds[1], inclusive=True)]
+        mergedDf = mergedDf[mergedDf['retTime'].between(timeBounds[0], timeBounds[1], inclusive='both')]
     return mergedDf
     
 def combine_Substituted_Peaks(splitDf, cullOn = None, cullAmt = 3, scanNumber = False, timeBounds = (0,0),MNRelativeAbundance = False):
@@ -305,7 +306,7 @@ def output_Raw_File_Ratios(mergedDf, subNameList, mostAbundant = True, massStr =
                         
     return rtnDict
 
-def calc_Folder_Output(isoXFilePaths, smpStdOrdering = None, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = (0,0), MNRelativeAbundance = False):
+def calc_Folder_Output(isoXFilePaths, smpStdOrdering = None, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = (0,0), MNRelativeAbundance = False, RSESNScreen = True, zeroCountsScreen = True, zeroCountsThreshold = 0, peakDriftScreen = True, peakDriftThreshold = 2):
     '''
     Calculates the output for many isoX files (NOT combined.isox. Files should be processed individually). 
 
@@ -380,6 +381,14 @@ def calc_Folder_Output(isoXFilePaths, smpStdOrdering = None, cullOn = None, cull
         #sort by fragment and isotope ratio, output to csv
         rtnAllFilesDF = rtnAllFilesDF.sort_values(by=['Fragment', 'IsotopeRatio'], axis=0, ascending=True)
 
+    if RSESNScreen:
+        dataScreenIsoX.RSESNScreen(rtnAllFilesDF, MNRelativeAbundance = MNRelativeAbundance)
+
+    if zeroCountsScreen:
+        dataScreenIsoX.zeroCountsScreen(mergedDict, threshold = zeroCountsThreshold)
+
+    if peakDriftScreen:
+        dataScreenIsoX.peakDriftScreen(mergedDict, threshold = peakDriftThreshold)
 
     return rtnAllFilesDF, mergedDict
 
@@ -414,7 +423,7 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
         
     return sampleOutputDict
 
-def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToCSV=False, csvOutputPath = 'output.csv', file_extension = '.isox', processed_data_subfolder='Processed Data', time_bounds = (0,0)):
+def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToCSV=False, csvOutputPath = 'output.csv', file_extension = '.isox', processed_data_subfolder='Processed Data', time_bounds = (0,0), RSESNScreen = True, zeroCountsScreen = True, zeroCountsThreshold = 0, peakDriftScreen = True, peakDriftThreshold = 2):
     '''
     Process statistics on isox files and output processed data results. Prepare data to run M+1 model. If you have multiple input files, it will take their average relative standard error and divide this by the square root of the number of files to use for future computations. 
 
@@ -450,7 +459,7 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
             MN_RELATIVE_ABUNDANCE = True
 
         #Compute output and append to lists
-        rtnAllFilesDF, mergedDict = calc_Folder_Output(isoXFileNames, smpStdOrdering = smpStdOrdering, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = time_bounds, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE)
+        rtnAllFilesDF, mergedDict = calc_Folder_Output(isoXFileNames, smpStdOrdering = smpStdOrdering, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = time_bounds, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE, RSESNScreen = RSESNScreen, zeroCountsScreen = zeroCountsScreen, zeroCountsThreshold = zeroCountsThreshold, peakDriftScreen = peakDriftScreen, peakDriftThreshold = peakDriftThreshold)
         allDataReturnedDFList.append(rtnAllFilesDF)
         allMergedDict.append(mergedDict)
     

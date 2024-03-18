@@ -8,7 +8,7 @@ import solveSystem as ss
 import readCSVAndSimulate as sim
 import basicDeltaOperations as op
 import fragmentAndSimulate as fas
-import organizeData
+import dataAnalyzerMNIsoX
 
 def defineProcessFragKeys(fragmentationDictionary):
     '''
@@ -57,7 +57,7 @@ def experimentalDataM1(rtnMeans, cwd, MOLECULE_INPUT_PATH, std_deltas, UValue = 
     UValuesSmp = getUVal(rtnMeans, initializedMolecule, UValue = UValue, mAObs = mAObs, mARelErr = mARelErr)
 
     #GET M+1 DATA
-    preparedData = organizeData.prepareDataForM1(rtnMeans)
+    preparedData = dataAnalyzerMNIsoX.prepareDataForM1(rtnMeans)
     replicateData = ri.readObservedData(preparedData, theory = predictedMeasurement,
                                                     standard = [True, False],
                                                     processFragKeys = processFragKeys)
@@ -128,16 +128,36 @@ def getUVal(rtnMeans, initializedMolecule, UValue = '13C/Unsub', mAObs = None, m
         else:
             return {rare_sub:{'Observed': UOrbi, 'Error': UOrbi * mARelErr / 1000}}
 
+    #Get actual standard enrichment vs reference frame
+    stdRatioVSRef = getAverageRatio(mDf, U_ValID)
+    nAtomsThisU = mDf[mDf['IDS'] == U_ValID]['Number'].sum()
+    
     #Filter by the U Value of interest and perform a sample standard comparison.
     MAData = rtnMeans[rtnMeans['Fragment'] == 'full_molecular_average']
     filtered_data = MAData[MAData['IsotopeRatio'] == UValue]
     grouped = filtered_data.groupby('File Type')[['Average', 'RelStdError']].first()
-    thisUVal = 1000 * (grouped.loc['Smp', 'Average'] / grouped.loc['Std', 'Average'] - 1)
+    thisUVal = stdRatioVSRef * grouped.loc['Smp', 'Average'] / grouped.loc['Std', 'Average']
+    thisUVal *= nAtomsThisU
     thisURelativeErr = np.sqrt((grouped.loc['Smp', 'RelStdError'])**2 + (grouped.loc['Std', 'RelStdError'])**2)
 
     #Convert the delta value to concentration, multiply by 3 to go from R to U value
-    nAtomsThisU = mDf[mDf['IDS'] == U_ValID]['Number'].sum()
-    UOrbi = op.concentrationToM1Ratio(op.deltaToConcentration(U_ValID,thisUVal)) * nAtomsThisU
-    UValuesSmp = {rare_sub:{'Observed': UOrbi, 'Error': UOrbi * thisURelativeErr}}
+    UValuesSmp = {rare_sub:{'Observed': thisUVal, 'Error': thisUVal * thisURelativeErr}}
 
     return UValuesSmp
+
+def getAverageRatio(molecularDataFrame, element):
+    #pull out this element only
+    thisElementDf = molecularDataFrame[molecularDataFrame['IDS'] == element]
+    numbers = thisElementDf['Number']
+    deltas = thisElementDf['deltas']
+
+    #Loop through sites. Get the concentration of each and add to total
+    totalConc = [0,0,0,0]
+    for siteIdx, siteDelta in enumerate(deltas):
+        thisConc = np.array(op.deltaToConcentration(element,siteDelta))
+        totalConc += thisConc * numbers[siteIdx]
+
+    #convert total concentration to ratio and delta
+    avgRatio = op.concentrationToM1Ratio(totalConc)
+
+    return avgRatio
