@@ -1,9 +1,0 @@
-Site Names,Element,Number Atoms,Fragment full,Fragment 126,Fragment 111
-C_aldehyde,C,1,1,0,0
-C_ring,C,6,1,1,1
-C_methoyxyl,C,1,1,1,0
-O_aldehyde,O,1,1,0,0
-O_hydroxyl,O,1,1,1,1
-O_methoxyl,O,1,1,1,0
-Hretained,H,7,1,1,1
-Hlost,H,2,1,1,0

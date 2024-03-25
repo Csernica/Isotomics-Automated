@@ -1,0 +1,5 @@
+#Compound	Isotopolog	m/z	Tolerance [mmu]	z
+44	Unsub	44.05002	0.1	1
+44	D	45.05630	0.1	1
+44	15N	45.04706	0.1	1
+44	13C	45.05338	0.1	1

@@ -465,3 +465,32 @@ def isotopologueDataFrame(MNDictionary, molecularDataFrame):
         isotopologuesDict[key] = Isotopologues
         
     return isotopologuesDict
+
+def predictTraditionalMeasurement(molecularDataFrame, atomFrag, byAtom):
+    '''
+    Currently a shell compared to predictMNFragmentation. Occasionally, it will be worthwhile for the user to simulate a 'traditional' fragmentation measurement (i.e., without mass selection). This implements that and returns a dictionary where keys are substitutions and values are the abundances. 
+
+    Less developed; it does not account for fractionation and the like and is not integrated into any other routines. I include it here in case a user wants to know how to implement this. 
+
+    Currently applies to one fragment at a time. Need to build a loop for multiple fragments. 
+
+    Inputs:
+        molecularDataFrame: Basic information about the molecule. 
+        atomFrag: The ATOM depiction of the fragment
+        byAtom: A dictionary with all isotopologues to fragment. 
+
+    Outputs:
+        predictSpectrum: A dictionary. Keys are subKeys (e.g., 'D-D-13C') and values are the abundances of those after fragmentation. 
+    '''
+    predictSpectrum = {}
+    siteElements = ci.strSiteElements(molecularDataFrame)
+    fragmentedIsotopologues = fragmentIsotopologueDict(byAtom, atomFrag, relContribution = 1)
+
+    for isoKey, isoData in fragmentedIsotopologues.items():
+        subKey = computeSubs(isoKey, siteElements)
+                    
+        if subKey not in predictSpectrum:
+            predictSpectrum[subKey] = {'Abs. Abundance':0}
+        predictSpectrum[subKey]['Abs. Abundance'] += isoData
+
+    return predictSpectrum
