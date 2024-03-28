@@ -1,63 +1,62 @@
 import os
 import pandas as pd
 
-def create_nested_folders(fragment_dict, parent_folder="."):
+def create_sample_standard_subfolders(parent_folder):
+    '''
+    helper function for create_nested_folders. Doesn't return anything, just makes subdirectories. 
+    '''
+    for subfolder in ["Smp", "Std"]:
+        subfolder_path = os.path.join(parent_folder, subfolder)
+        os.makedirs(subfolder_path, exist_ok=True)
+
+def create_folder_with_subfolders(folder_path):
+    """
+    Attempts to create the folder and its subfolders, handling exceptions appropriately.
+    """
+    try:
+        os.makedirs(folder_path, exist_ok=True)  # Adjusted for idempotency with exist_ok=True
+        print(f"Folder created or already exists: {folder_path}")
+        # Add "sample" and "standard" subfolders
+        create_sample_standard_subfolders(folder_path)
+
+    except Exception as e:
+        print(f"Error creating folder {folder_path}: {e}")
+
+def create_nested_folders(fragment_dict, parent_folder=".", oneFragFile=False):
     """
     Create nested folders based on a dictionary.
 
     Parameters:
     - fragment_dict: A dictionary where keys represent folder names.
     - parent_folder: The parent folder where the structure will be created. Default is the current directory.
-    """
-
+    - oneFragFile: Indicates whether a single .isox file with data from all fragments is being provided. 
+    """ 
     file_paths_dict = {}
-    rtnParentFolder = parent_folder
-
-    for fragment_name in fragment_dict:
-        folder_path = os.path.join(parent_folder, fragment_name)
-
-        # Add the folder path to the dictionary
-        if fragment_name in file_paths_dict:
-            file_paths_dict[fragment_name].append(folder_path)
+    
+    # Define special subfolders for specific fragment names
+    special_subfolders = {
+        'full': ['full_relative_abundance', 'full_molecular_average']
+    }
+    
+    for fragment_name in fragment_dict.keys():
+        # Handle special subfolders for the 'full' fragment
+        if fragment_name in special_subfolders:
+            for subfolder in special_subfolders[fragment_name]:
+                special_folder_path = os.path.join(parent_folder, subfolder)
+                create_folder_with_subfolders(special_folder_path)
+                file_paths_dict.setdefault(fragment_name, []).append(special_folder_path)
+            
+        elif oneFragFile:
+            # Use a common folder for all fragments except when handling 'full'
+            folder_path = os.path.join(parent_folder, 'all_fragments')
+            create_folder_with_subfolders(folder_path)
+            file_paths_dict[fragment_name] = [folder_path]
         else:
+            folder_path = os.path.join(parent_folder, fragment_name)
+            create_folder_with_subfolders(folder_path)
             file_paths_dict[fragment_name] = [folder_path]
 
-        try:
-            if fragment_name == 'full':
-                # Create separate folders for full_relative_abundance and full_molecular_average
-                relative_abundance_folder = os.path.join(parent_folder, 'full_relative_abundance')
-                molecular_average_folder = os.path.join(parent_folder, 'full_molecular_average')
-                os.makedirs(relative_abundance_folder)
-                print(f"Folder created: {relative_abundance_folder}")
-                os.makedirs(molecular_average_folder)
-                print(f"Folder created: {molecular_average_folder}")
-
-                # Add "sample" and "standard" subfolders for the new folders
-                sample_folder = os.path.join(relative_abundance_folder, "Smp")
-                standard_folder = os.path.join(relative_abundance_folder, "Std")
-                os.makedirs(sample_folder)
-                os.makedirs(standard_folder)
-
-                sample_folder = os.path.join(molecular_average_folder, "Smp")
-                standard_folder = os.path.join(molecular_average_folder, "Std")
-                os.makedirs(sample_folder)
-                os.makedirs(standard_folder)
-            else:
-                os.makedirs(folder_path)
-                print(f"Folder created: {folder_path}")
-                # Add "sample" and "standard" subfolders
-                sample_folder = os.path.join(folder_path, "Smp")
-                standard_folder = os.path.join(folder_path, "Std")
-                os.makedirs(sample_folder)
-                os.makedirs(standard_folder)
-
-        except FileExistsError:
-            print(f"Folder already exists: {folder_path}")
-        except Exception as e:
-            print(f"Error creating folder {folder_path}: {e}")
-            
-    return file_paths_dict, rtnParentFolder
-
+    return file_paths_dict, parent_folder
 
 def get_file_paths_in_subfolders(folder_path, file_extensions='.isox'):
     """

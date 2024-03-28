@@ -10,7 +10,7 @@ import basicDeltaOperations as op
 import fragmentAndSimulate as fas
 import dataAnalyzerMNIsoX
 
-def defineProcessFragKeys(fragmentationDictionary):
+def defineProcessFragKeys(fragmentationDictionary, fragSubset = None):
     '''
     processFragKeys is a dictionary used to help read in experimental data. The idea is, your experimental data is read in with some fragment keys (e.g., '44', 'full_relative_abundance') which may not correspond to those used for simulated data, and processFragKeys converts between the two. Based on the way we set this up in Isotomics-Automated they should match except for the 'full_relative_abundance'. This fills them in. 
 
@@ -23,11 +23,15 @@ def defineProcessFragKeys(fragmentationDictionary):
     processFragKeys = {'full_relative_abundance':'full'}
     for fragKey in fragmentationDictionary:
         if fragKey != 'full':
-            processFragKeys[fragKey] = fragKey
+            if fragSubset == None:
+                processFragKeys[fragKey] = fragKey
+            elif fragKey in fragSubset:
+                processFragKeys[fragKey] = fragKey
+                
 
     return processFragKeys
 
-def experimentalDataM1(rtnMeans, cwd, MOLECULE_INPUT_PATH, std_deltas, UValue = '13C/Unsub', mAObs = None, mARelErr = None, perturbTheoryOAmt = 0.001, MonteCarloN = 1000, outputPrecision = 3, resultsFileName = 'M1Output.csv', plot = True):
+def experimentalDataM1(rtnMeans, cwd, MOLECULE_INPUT_PATH, std_deltas, UValue = '13C/Unsub', mAObs = None, mARelErr = None, perturbTheoryOAmt = 0.001, MonteCarloN = 1000, outputPrecision = 3, resultsFileName = 'M1Output.csv', plot = True, fragSubset = None):
     '''
     Parent function to process experimental M+1 Data and return results. 
 
@@ -48,7 +52,7 @@ def experimentalDataM1(rtnMeans, cwd, MOLECULE_INPUT_PATH, std_deltas, UValue = 
         Also returns a plot (if plot) and an output .csv (of cleanExperimentalOutput)
     '''
     #GET FORWARD MODEL STANDARD
-    initializedMolecule = sim.moleculeFromCsv(os.path.join(cwd, MOLECULE_INPUT_PATH), deltas = std_deltas)
+    initializedMolecule = sim.moleculeFromCsv(os.path.join(cwd, MOLECULE_INPUT_PATH), deltas = std_deltas, fragSubset = fragSubset)
     processFragKeys = defineProcessFragKeys(initializedMolecule['fragmentationDictionary'])
     mDf = initializedMolecule['molecularDataFrame']
     predictedMeasurement, MNDict, fractionationFactors = sim.simulateMeasurement(initializedMolecule, massThreshold = 5)

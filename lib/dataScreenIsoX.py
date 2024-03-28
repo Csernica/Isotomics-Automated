@@ -5,7 +5,7 @@ import seaborn as sns
 import dataAnalyzerMNIsoX as dA
 from tqdm import tqdm
     
-SUB_MASS_DICT = {'d':1.00627674587,'15n':0.997034886,'13c':1.003354835,
+SUB_MASS_DICT = {'d':1.00627674587,'2h':1.00627674587,'15n':0.997034886,'13c':1.003354835,
                    'unsub':0,'33s':0.999387735,'34s':1.995795825,'36s':3.995009525,
                   '18o':2.0042449924,'17o':1.0042171364}
 
@@ -32,7 +32,7 @@ def RSESNScreen(rtnAllFilesDF, MNRelativeAbundance = False, threshold = 2):
         thisRSEOverSN = row['RSE over SN']
         print(fileName + ' ' + fragment + ' ' + sub + " fails RSE/SN test with a value of " + f'{thisRSEOverSN:.3f}')
 
-def zeroCountsScreen(mergedDict, threshold = 0):
+def zeroCountsScreen(mergedDict, fileName, fragKey, threshold = 0):
     '''
     Iterates through all peaks and prints those with zero counts higher than a certain relative threshold.
 
@@ -46,20 +46,15 @@ def zeroCountsScreen(mergedDict, threshold = 0):
     Outputs:
         None. Prints the name of peaks with more than the threshold number of zero scans. 
     '''
-    
-    firstKey = list(mergedDict.keys())[0]
-    subNameList = mergedDict[firstKey]['subNameList']
+    subNameList = mergedDict['subNameList']
+    thisMergedDf = mergedDict['mergedDf']
 
     for iso in subNameList:
-        for fileIdx, (fileName, fileData) in enumerate(mergedDict.items()):
-            thisMergedDf = fileData['mergedDf']
-            thisIsoFileZeros = len(thisMergedDf['counts' + iso].values) - np.count_nonzero(thisMergedDf['counts' + iso].values)
+        thisIsoFileZeros = len(thisMergedDf['counts' + iso].values) - np.count_nonzero(thisMergedDf['counts' + iso].values)
 
-            thisIsoFileZerosFraction = thisIsoFileZeros / len(thisMergedDf['counts' + iso])
-            if thisIsoFileZerosFraction > threshold:
-                print(fileName + ' ' + iso + ' has ' + str(thisIsoFileZeros) + ' zero scans, out of ' + str(len(thisMergedDf['counts' + iso])) + ' scans (' + str(thisIsoFileZerosFraction) + ')') 
-
-
+        thisIsoFileZerosFraction = thisIsoFileZeros / len(thisMergedDf['counts' + iso])
+        if thisIsoFileZerosFraction > threshold:
+            print('Zero Counts: ' + fileName + ' ' + str(fragKey) + ' ' + iso + ' has ' + str(thisIsoFileZeros) + ' zero scans, out of ' + str(len(thisMergedDf['counts' + iso])) + ' scans (' + str(thisIsoFileZerosFraction) + ')') 
 
 def getThisSubMass(subKey):
     '''
@@ -78,39 +73,39 @@ def getThisSubMass(subKey):
 
     return computedMass
     
-def peakDriftScreen(mergedDict, threshold = 2):
+def peakDriftScreen(mergedDict, fileName, fragKey, threshold = 2):
     '''
     Check each peak to determine if it has drifted relative to the most abundant isotope. Threshold is the amount of drift (in ppm) required to raise a warning.  
     '''
-    for fileIdx, (fileKey, fileData) in enumerate(mergedDict.items()):
-        subNameList = fileData['subNameList']
-        mergedDf = fileData['mergedDf']
-        mostAbundantIso = dA.findMostAbundantSub(mergedDf, subNameList)
-        idxMostAbundant = subNameList.index(mostAbundantIso)
+    subNameList = mergedDict['subNameList']
+    mergedDf = mergedDict['mergedDf']
+  
+    mostAbundantIso = dA.findMostAbundantSub(mergedDf, subNameList)
+    idxMostAbundant = subNameList.index(mostAbundantIso)
 
-        observedMasses = []
-        for iso in subNameList:
-            observedMassIso = mergedDf[mergedDf['mass' + iso]!=0]['mass' + iso].mean()
-            observedMasses.append(observedMassIso)
+    observedMasses = []
+    for iso in subNameList:
+        observedMassIso = mergedDf[mergedDf['mass' + iso]!=0]['mass' + iso].mean()
+        observedMasses.append(observedMassIso)
 
-        mostAbundantMassObs = observedMasses[idxMostAbundant]
-        mostAbundantMassTheory = getThisSubMass(mostAbundantIso)
-        
-        for thisIsoIdx, thisIso in enumerate(subNameList):
-            if thisIso != mostAbundantIso:
-                thisMassTheory = getThisSubMass(thisIso)
-                thisMassObs = observedMasses[thisIsoIdx]
+    mostAbundantMassObs = observedMasses[idxMostAbundant]
+    mostAbundantMassTheory = getThisSubMass(mostAbundantIso)
+    
+    for thisIsoIdx, thisIso in enumerate(subNameList):
+        if thisIso != mostAbundantIso:
+            thisMassTheory = getThisSubMass(thisIso)
+            thisMassObs = observedMasses[thisIsoIdx]
 
-                #compute observed and theoretical mass differences
-                massDiffTheory = thisMassTheory - mostAbundantMassTheory
-                massDiffObserve = thisMassObs - mostAbundantMassObs
+            #compute observed and theoretical mass differences
+            massDiffTheory = thisMassTheory - mostAbundantMassTheory
+            massDiffObserve = thisMassObs - mostAbundantMassObs
 
-                peakDrift = np.abs(massDiffObserve - massDiffTheory)
+            peakDrift = np.abs(massDiffObserve - massDiffTheory)
 
-                peakDriftppm = peakDrift / observedMassIso * 10**6
+            peakDriftppm = peakDrift / observedMassIso * 10**6
 
-                if peakDriftppm > threshold:
-                    print("Peak Drift Observed for " + fileKey + " " + iso + " with size " + str(peakDriftppm))
+            if peakDriftppm > threshold:
+                print("Peak Drift Observed for " + fileName + " " + str(fragKey) + ' ' + thisIso + " with size " + str(peakDriftppm))
 
 def subsequenceOutlierDetection(timeSeries, priorSubsequenceLength = 1000, testSubsequenceLength = 1000):
     '''

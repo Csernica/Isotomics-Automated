@@ -6,9 +6,23 @@ import calcIsotopologues as ci
 import matplotlib.pyplot as plt
 import basicDeltaOperations as op
 
+import re
 import json
 import copy
 
+def extract_and_convert_percentage(s):
+    # Use a regular expression to find one or more digits followed by a '%'
+    match = re.search(r'(\d+)%', s)
+    if match:
+        # Extract the percentage value and convert it to an integer
+        percentage_int = int(match.group(1))
+        # Convert the integer percentage to a decimal
+        percentage_decimal = percentage_int / 100.0
+        return percentage_decimal
+    else:
+        # Return None or raise an error if no percentage is found
+        return None
+    
 def process_fragment_column(col, fragSubset, molecularDf, fragmentationDictionary, renameCols):
     '''
     Read and process a single fragment column. Helper function for moleculeFromCsv.
@@ -42,7 +56,12 @@ def process_fragment_column(col, fragSubset, molecularDf, fragmentationDictionar
         #If the fragment is desired, fill in the dictionary
         if parentFrag in fragSubset:
             renameCols[col] = newName
-            fragmentationDictionary[parentFrag] = {geometryNumber:{'subgeometry':list(molecularDf[col]), 'relCont':1}}
+
+            if parentFrag not in fragmentationDictionary:
+                fragmentationDictionary[parentFrag] = {}
+
+            relCont = extract_and_convert_percentage(col)
+            fragmentationDictionary[parentFrag][geometryNumber] = {'subgeometry':list(molecularDf[col]), 'relCont':relCont}
         #otherwise, drop it
         else:
             molecularDf.drop(columns=col, inplace=True)
@@ -73,6 +92,20 @@ def otherFragmentReps(fragmentationDictionary, molecularDf):
 
     return expandedFrags, fragSubgeometryKeys
 
+def simplifyFragSubset(fragSubset):
+    '''
+    By default, fragSubset can look like ['119','94'] or ['119_01','119_02','94_01','94_02'], if subgeometries are used. This processes the version with the subgeometries to include only the names of the parent frags.
+    '''
+    # Check if any item contains an underscore
+    if any('_' in item for item in fragSubset):
+        # Process the list to remove characters after '_' and keep unique entries
+        processed_list = list(set(item.split('_')[0] for item in fragSubset))
+        return processed_list
+    else:
+        # Return the list as is if no item contains an underscore
+        return fragSubset
+
+
 def moleculeFromCsv(path, deltas = False, fragSubset = None):
     '''
     Reads in a .csv file to get basic information about that molecule.
@@ -100,6 +133,8 @@ def moleculeFromCsv(path, deltas = False, fragSubset = None):
     #Fill in programatically in the default case
     if fragSubset == None:
         fragSubset = [col.split(' ')[1] for col in molecularDf.columns if 'Fragment' in col]
+        fragSubset = simplifyFragSubset(fragSubset)
+        print(fragSubset)
 
     #Fill a dictionary with the fragment information and which sites each fragment samples
     fragmentationDictionary = {}
@@ -292,7 +327,7 @@ def plotOutput(simulationOutput, relativeDeltasActual = None, ylim = False):
     if ylim:
         ax.set_ylim(*ylim)
 
-def simulateSmpStd(path, deltasStd, deltasSmp, deltasStdAppx, abundanceThreshold = 0, UValueList = [], massThreshold = 1,  disableProgress = True, calcFF = False, omitMeasurements = {}, ffstd = 0.05, plot = True, MonteCarloN = 100, perturbTheoryOAmt = 0, errorPath = False, MNError = 0, UValueError = 0, resultsFileName = 'output.csv', outputPrecision = 3, UMNSub = '13C'):
+def simulateSmpStd(path, deltasStd, deltasSmp, deltasStdAppx, abundanceThreshold = 0, UValueList = [], massThreshold = 1,  disableProgress = True, calcFF = False, omitMeasurements = {}, ffstd = 0.05, plot = True, MonteCarloN = 100, perturbTheoryOAmt = 0, errorPath = False, MNError = 0, UValueError = 0, resultsFileName = 'output.csv', outputPrecision = 3, UMNSub = '13C', fragSubset = None):
     '''
     Parent function which constructs and runs a full sample standard comparison. 
 
@@ -324,15 +359,15 @@ def simulateSmpStd(path, deltasStd, deltasSmp, deltasStdAppx, abundanceThreshold
     'ffstd': ffstd}
 
     #Simulate observations of the standard
-    thisStd = moleculeFromCsv(path, deltas = deltasStd)
+    thisStd = moleculeFromCsv(path, deltas = deltasStd, fragSubset = fragSubset)
     stdMeasurement, stdMNDict, stdFF = simulateMeasurement(thisStd, **simArgs)
 
     #Simulate observations of the sample
-    thisSmp = moleculeFromCsv(path, deltas = deltasSmp)
+    thisSmp = moleculeFromCsv(path, deltas = deltasSmp,fragSubset = fragSubset)
     smpMeasurement, smpMNDict, smpFF = simulateMeasurement(thisSmp, **simArgs)
 
     #Simulate a forward model of the standard. 
-    forwardModel = moleculeFromCsv(path, deltas = deltasStdAppx)
+    forwardModel = moleculeFromCsv(path, deltas = deltasStdAppx,fragSubset = fragSubset)
     forwardModelPredictions, MNDict, FF = simulateMeasurement(forwardModel,abundanceThreshold = 0,
                                                                         massThreshold = 1,
                                                                             unresolvedDict = {})
@@ -365,10 +400,11 @@ def simulateSmpStd(path, deltasStd, deltasSmp, deltasStdAppx, abundanceThreshold
     cleanSimulationOutput[toRound] = cleanSimulationOutput[toRound].round(decimals=outputPrecision) 
     cleanSimulationOutput.to_csv(resultsFileName, index=False)
 
+    relativeDeltasActual = [op.compareRelDelta(atomID, delta1, delta2) for atomID, delta1, delta2 in zip(forwardModel['molecularDataFrame']['IDS'], deltasStd, deltasSmp)]
+
     #Construct Plot
     if plot:
-        relativeDeltasActual = [op.compareRelDelta(atomID, delta1, delta2) for atomID, delta1, delta2 in zip(forwardModel['molecularDataFrame']['IDS'], deltasStd, deltasSmp)]
-
         plotOutput(simulationOutput, relativeDeltasActual = relativeDeltasActual)
 
+    simulationOutput['relative Deltas Actual'] = relativeDeltasActual
     return simulationOutput

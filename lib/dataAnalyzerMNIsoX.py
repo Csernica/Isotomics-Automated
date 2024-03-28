@@ -102,7 +102,7 @@ def cull_By_Time(mergedDf, timeBounds, scanNumber = False):
         mergedDf = mergedDf[mergedDf['retTime'].between(timeBounds[0], timeBounds[1], inclusive='both')]
     return mergedDf
     
-def combine_Substituted_Peaks(splitDf, cullOn = None, cullAmt = 3, scanNumber = False, timeBounds = (0,0),MNRelativeAbundance = False):
+def combine_Substituted_Peaks(splitDf, cullOn = None, cullAmt = 3, scanNumber = False, timeBounds = None,MNRelativeAbundance = False):
     '''
     splitDf: A Pandas groupBy object; can be iterated through; iterations give tuples of isotopolog strings ('D','M0', etc.) and dataframes corresponding to the data for that substitution. 
     cullByTime: If True, only include data within certain set of timepoints (by scan # or retTime)
@@ -159,18 +159,7 @@ def combine_Substituted_Peaks(splitDf, cullOn = None, cullAmt = 3, scanNumber = 
     combinedData['mergedDf'] = baseDf
     return combinedData
 
-def setDualInletTimes(startDeadObsReps):
-    startTime, deadTime, obsTime, numReps = startDeadObsReps
-    dualInletBounds = []
-    curTime = startTime
-    for rep in range(numReps): 
-        thisObs = (curTime + deadTime, curTime + deadTime + obsTime)
-        dualInletBounds.append(thisObs)
-        curTime += deadTime + obsTime
-
-    return dualInletBounds
-
-def processIsoXDf(IsoXDf, cullOn = None, cullAmt = 3, scanNumber = False, timeBounds = (0,0),MNRelativeAbundance = False):
+def processIsoXDf(IsoXDf, cullOn = None, cullAmt = 3, scanNumber = False, timeBounds = None,MNRelativeAbundance = False, subsToExclude = []):
     '''
     Takes in the IsoXDataframe; splits it based on filename. For each filename, combines the data from all substitutions into a single dataframe. Adds these dataframes to an output list. 
 
@@ -180,7 +169,6 @@ def processIsoXDf(IsoXDf, cullOn = None, cullAmt = 3, scanNumber = False, timeBo
     Outputs:
         mergedList: mergedList, is a list of dataframes. Each dataframe corresponds to one file & has all information about each scan on a single line. 
     '''
-
     thisFileData = IsoXDf
     
     #Check to see if there is any issue with multiple entries being found for the same substitution
@@ -196,8 +184,12 @@ def processIsoXDf(IsoXDf, cullOn = None, cullAmt = 3, scanNumber = False, timeBo
 
      #For each isotopolog & each scan, select only the observation with highest intensity
     selectTopScan = thisFileData.loc[thisFileData.groupby(['isotopolog','scanNumber'])["intensity"].idxmax()]
+
+    #Filter out substitutions based on a user-provided list
+    filtered_df = selectTopScan[~selectTopScan['isotopolog'].isin(subsToExclude)]
+
     #sort by isotopolog to prepare for combine_substituted
-    topScanDf = selectTopScan.groupby('isotopolog')
+    topScanDf = filtered_df.groupby('isotopolog')
     thisCombined = combine_Substituted_Peaks(topScanDf, cullOn = cullOn, cullAmt = cullAmt, scanNumber = scanNumber, timeBounds = timeBounds,MNRelativeAbundance = MNRelativeAbundance)
 
     return thisCombined
@@ -306,7 +298,37 @@ def output_Raw_File_Ratios(mergedDf, subNameList, mostAbundant = True, massStr =
                         
     return rtnDict
 
-def calc_Folder_Output(isoXFilePaths, smpStdOrdering = None, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = (0,0), MNRelativeAbundance = False, RSESNScreen = True, zeroCountsScreen = True, zeroCountsThreshold = 0, peakDriftScreen = True, peakDriftThreshold = 2):
+def read_IsoX_Folder(isoXFileNames, cullOn = None, cullAmt = 3, scanNumber = False, timeBounds = None, MNRelativeAbundance = False, zeroCountsScreen = True, zeroCountsThreshold = 0, peakDriftScreen = True, peakDriftThreshold = 2, exclusionDict = {}):
+    mergedDictByFrags = {}
+
+    for isoXFileName in isoXFileNames:
+        print("Reading in " + str(isoXFileName))
+        thisIsoX = readIsoX(isoXFileName)
+        fragKeys = set(thisIsoX['compound'])
+
+        for fragKey in fragKeys:
+            if str(fragKey) not in mergedDictByFrags:
+                mergedDictByFrags[str(fragKey)] = {}
+
+            if str(fragKey) in exclusionDict:
+                thisSubsToExclude = exclusionDict[str(fragKey)]
+            else:
+                thisSubsToExclude = []
+
+            thisFragDf = thisIsoX[thisIsoX['compound'] == fragKey]
+            thisMergedDict = processIsoXDf(thisFragDf, cullOn = cullOn, cullAmt = cullAmt, scanNumber = scanNumber, timeBounds = timeBounds, MNRelativeAbundance = MNRelativeAbundance, subsToExclude = thisSubsToExclude)
+
+            if zeroCountsScreen:
+                dataScreenIsoX.zeroCountsScreen(thisMergedDict, isoXFileName, fragKey, threshold = zeroCountsThreshold)
+
+            if peakDriftScreen:
+                dataScreenIsoX.peakDriftScreen(thisMergedDict, isoXFileName, fragKey, threshold = peakDriftThreshold)
+
+            mergedDictByFrags[str(fragKey)][isoXFileName] = thisMergedDict
+
+    return mergedDictByFrags
+
+def calc_Folder_Output(isoXFileNames, smpStdOrdering = None, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = None, MNRelativeAbundance = False, RSESNScreen = True, zeroCountsScreen = True, zeroCountsThreshold = 0, peakDriftScreen = True, peakDriftThreshold = 2, exclusionDict = {}):
     '''
     Calculates the output for many isoX files (NOT combined.isox. Files should be processed individually). 
 
@@ -326,34 +348,29 @@ def calc_Folder_Output(isoXFilePaths, smpStdOrdering = None, cullOn = None, cull
         rtnAllFilesDF: A dataframe containing the processed data means, stdevs, serrs, rses, and SN. 
         mergedDict: A dictionary, containing 'subNameList' (metadata used in computations) and 'mergedDf', a dataframe containing the scan-by-scan data for that file. 
     '''    
-    mergedDict = {}
-
-    for isoXFileName in isoXFilePaths:
-        thisShorterName = os.path.basename(os.path.dirname(os.path.dirname(isoXFileName)))
-        thisIsoX = readIsoX(isoXFileName)
-        thisDict = processIsoXDf(thisIsoX, cullOn = cullOn, cullAmt = cullAmt, scanNumber = scanNumber, timeBounds = timeBounds, MNRelativeAbundance = MNRelativeAbundance)
-        mergedDict[str(isoXFileName)] = thisDict
-
+    mergedDictByFrags = read_IsoX_Folder(isoXFileNames, cullOn = cullOn, cullAmt = cullAmt, scanNumber = scanNumber, timeBounds = timeBounds, MNRelativeAbundance = MNRelativeAbundance, zeroCountsScreen=zeroCountsScreen, zeroCountsThreshold=zeroCountsThreshold, peakDriftScreen=peakDriftScreen, peakDriftThreshold=peakDriftThreshold, exclusionDict=exclusionDict)
+    
     rtnAllFilesDF = []
-    for thisFileIdx, (thisFileName, thisFileData) in enumerate(mergedDict.items()):
-        if smpStdOrdering == None:
-            thisFileSmpStd = 'N/A'
-        else:
-            thisFileSmpStd = smpStdOrdering[thisFileIdx]
+    for fragKey, fragData in mergedDictByFrags.items():
+        for thisFileIdx, (thisFileName, thisFileData) in enumerate(fragData.items()):
+            if smpStdOrdering == None:
+                thisFileSmpStd = 'N/A'
+            else:
+                thisFileSmpStd = smpStdOrdering[thisFileIdx]
 
-        thisMergedDf = thisFileData['mergedDf']
-        thisSubNameList = thisFileData['subNameList']
-        if debug:
-            print(thisFileName)
-        if MNRelativeAbundance:
-            header = ["FileName", "Fragment", "MN Relative Abundance", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar', 'File Type']
-            thisFileOutput = output_Raw_File_MN_Rel_Abundance(thisMergedDf, thisSubNameList, massStr=thisShorterName)
-        else:
-            header = ["FileName", "Fragment", "IsotopeRatio", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar', 'File Type']
-            thisFileOutput = output_Raw_File_Ratios(thisMergedDf, thisSubNameList, massStr=thisShorterName)
+            thisMergedDf = thisFileData['mergedDf']
+            thisSubNameList = thisFileData['subNameList']
 
-        for fragKey, fragData in thisFileOutput.items():
-            for subKey, subData in fragData.items():
+            if MNRelativeAbundance:
+                header = ["FileName", "Fragment", "MN Relative Abundance", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar', 'File Type']
+                thisFileOutput = output_Raw_File_MN_Rel_Abundance(thisMergedDf, thisSubNameList, massStr=fragKey)
+
+            else:
+                header = ["FileName", "Fragment", "IsotopeRatio", "Average", "StdDev", "StdError", "RelStdError",'ShotNoise','Tic','TicVar', 'File Type']
+                thisFileOutput = output_Raw_File_Ratios(thisMergedDf, thisSubNameList, massStr=fragKey)
+
+            currentOutput = thisFileOutput[fragKey]
+            for subKey, subData in currentOutput.items():
             #add subkey to each separate df for isotope specific 
                 if MNRelativeAbundance:
                     thisRVal = subData["MN Relative Abundance"]
@@ -384,13 +401,7 @@ def calc_Folder_Output(isoXFilePaths, smpStdOrdering = None, cullOn = None, cull
     if RSESNScreen:
         dataScreenIsoX.RSESNScreen(rtnAllFilesDF, MNRelativeAbundance = MNRelativeAbundance)
 
-    if zeroCountsScreen:
-        dataScreenIsoX.zeroCountsScreen(mergedDict, threshold = zeroCountsThreshold)
-
-    if peakDriftScreen:
-        dataScreenIsoX.peakDriftScreen(mergedDict, threshold = peakDriftThreshold)
-
-    return rtnAllFilesDF, mergedDict
+    return rtnAllFilesDF, mergedDictByFrags
 
 def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
     '''
@@ -423,7 +434,7 @@ def folderOutputToDict(rtnAllFilesDF,MNRelativeAbundance = False):
         
     return sampleOutputDict
 
-def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToCSV=False, csvOutputPath = 'output.csv', file_extension = '.isox', processed_data_subfolder='Processed Data', time_bounds = (0,0), RSESNScreen = True, zeroCountsScreen = True, zeroCountsThreshold = 0, peakDriftScreen = True, peakDriftThreshold = 2):
+def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToCSV=False, csvOutputPath = 'output.csv', file_extension = '.isox', processed_data_subfolder='Processed Data', time_bounds = (0,0), RSESNScreen = True, zeroCountsScreen = True, zeroCountsThreshold = 0, peakDriftScreen = True, peakDriftThreshold = 2, exclusionDict = {}):
     '''
     Process statistics on isox files and output processed data results. Prepare data to run M+1 model. If you have multiple input files, it will take their average relative standard error and divide this by the square root of the number of files to use for future computations. 
 
@@ -459,18 +470,17 @@ def processIndividualAndAverageIsotopeRatios(fragmentFolderPaths, cwd, outputToC
             MN_RELATIVE_ABUNDANCE = True
 
         #Compute output and append to lists
-        rtnAllFilesDF, mergedDict = calc_Folder_Output(isoXFileNames, smpStdOrdering = smpStdOrdering, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = time_bounds, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE, RSESNScreen = RSESNScreen, zeroCountsScreen = zeroCountsScreen, zeroCountsThreshold = zeroCountsThreshold, peakDriftScreen = peakDriftScreen, peakDriftThreshold = peakDriftThreshold)
+        rtnAllFilesDF, mergedDict = calc_Folder_Output(isoXFileNames, smpStdOrdering = smpStdOrdering, cullOn = None, cullAmt = 3, debug = False, scanNumber = False, timeBounds = time_bounds, MNRelativeAbundance = MN_RELATIVE_ABUNDANCE, RSESNScreen = RSESNScreen, zeroCountsScreen = zeroCountsScreen, zeroCountsThreshold = zeroCountsThreshold, peakDriftScreen = peakDriftScreen, peakDriftThreshold = peakDriftThreshold, exclusionDict = exclusionDict)
         allDataReturnedDFList.append(rtnAllFilesDF)
         allMergedDict.append(mergedDict)
     
         #Compute means of sample and stanadrd
         if  MN_RELATIVE_ABUNDANCE == True:
-            thisSortedAverageDF = rtnAllFilesDF.sort_values(by=['MN Relative Abundance', 'File Type'])
-            nFiles = thisSortedAverageDF.groupby(['MN Relative Abundance', 'File Type'])['RelStdError'].transform('size')[0]
-            means = thisSortedAverageDF.groupby(['MN Relative Abundance', 'File Type']).mean(numeric_only = True).reset_index()
+            thisSortedAverageDF = rtnAllFilesDF.sort_values(by=['Fragment','MN Relative Abundance', 'File Type'])
+            nFiles = thisSortedAverageDF.groupby(['Fragment','MN Relative Abundance', 'File Type'])['RelStdError'].transform('size')[0]
+            means = thisSortedAverageDF.groupby(['Fragment','MN Relative Abundance', 'File Type']).mean(numeric_only = True).reset_index()
             means['RelStdError'] /= np.sqrt(nFiles)
             means['StdError'] /= np.sqrt(nFiles)
-            means['Fragment'] = thisFolderName
 
         else:
             thisSortedAverageDF = rtnAllFilesDF.sort_values(by=['IsotopeRatio', 'File Type'])
